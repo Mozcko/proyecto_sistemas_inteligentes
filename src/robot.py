@@ -19,7 +19,7 @@ class Robot:
         self.is_grabbing: bool = False
         self.materials: int = 0
         self.movements: list = []
-        self.explored_area: list = []
+        self.explored_area: set = set()
 
     def move(self, other_robots: list, resources: list[Resources],
              obstacles: list[Obstacles]) -> None:
@@ -49,17 +49,26 @@ class Robot:
             # Check for collisions with obstacles
             collides_with_obstacles = any(obstacle.x == new_x and obstacle.y == new_y for obstacle in obstacles)
 
+            # Check if the new position is already explored
+            already_explored = (new_x, new_y) in self.explored_area
+
             for resource in resources:
                 if resource.x == new_x and resource.y == new_y:
                     self.grab_resource(resource)
 
             if not collides_with_robots and not collides_with_obstacles and not collides_with_resources:
-                self.x = new_x
-                self.y = new_y
-                movement = (self.x, self.y)
-                self.movements.append(movement)
-                if movement not in self.explored_area:
-                    self.explored_area.append(movement)
+                if not already_explored:
+                    self.x = new_x
+                    self.y = new_y
+                    movement = (self.x, self.y)
+                    self.movements.append(movement)
+                    self.explored_area.add(movement)
+                elif randint(1,2) == 2:
+                    self.x = new_x
+                    self.y = new_y
+                    movement = (self.x, self.y)
+                    self.movements.append(movement)
+
 
     def return_to_start(self) -> None:
         if self.is_grabbing and self.movements:
