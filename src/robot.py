@@ -1,112 +1,87 @@
-import math
+# importes externos
+import random
+from math import sqrt
 
-from random import randint
+# importes internos
 from obstacles import Obstacles
 from resources import Resources
 from start_area import StartArea
+from node import Node
 
 
 class Robot:
-    def __init__(self, x: int, y: int, grid_width: int,
-                 grid_height: int) -> None:
-        self.start_x: int = x
-        self.start_y: int = y
-        self.x: int = x
-        self.y: int = y
-        self.grid_width: int = grid_width
-        self.grid_height: int = grid_height
+    def __init__(self, game):
+        self.game = game
+        self.start_cell = random.choice(self.game.get_start_area_cells()) 
+        print(self.start_cell.x)
+        self.x = self.start_cell.x
+        self.y = self.start_cell.y
+        self.view_distance = 5
+        self.materials = 0
+        self.movements = []
+        self.is_grabbing = False
+        self.closest_resource = None
 
-        self.is_grabbing: bool = False
-        self.materials: int = 0
-        self.movements: list = []
-        self.explored_area: set = set()
+    def move_randomly(self):
+        directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # up, down, left, right
+        direction = random.choice(directions)
 
-    def move(self, other_robots: list, resources: list[Resources],
-             obstacles: list[Obstacles]) -> None:
-        left = randint(0, 1)
-        right = randint(0, 1)
-        up = randint(0, 1)
-        down = randint(0, 1)
+        # Check if the move is valid (i.e., not into an obstacle or off the grid)
+        new_x, new_y = self.x + direction[0], self.y + direction[1]
+        if 0 <= new_x < self.game.width and 0 <= new_y < self.game.height and not self.game.is_obstacle((new_x, new_y)):
+            self.x, self.y = new_x, new_y
+            self.movements.append(direction)
 
-        moving_x = randint(0, 1)
-        if moving_x == 0:
-            moving_y = 1
+            # If the robot is moving towards a resource, check if it has reached the resource
+            if self.closest_resource and self.distance_to_resource() <= self.view_distance:
+                self.grab_resource(self.closest_resource)
+                self.game.log("Robot has grabbed a resource")
+                self.closest_resource = None
+
+            # If the robot is carrying a resource, check if it has reached the start area
+            elif self.is_grabbing and self.distance_to_start_area() <= self.view_distance:
+                self.drop_resource()
+                self.game.log("Robot has dropped a resource")
+
+    def distance_to_resource(self):
+        if not self.closest_resource:
+            return float('inf')
+        return abs(self.x - self.closest_resource.x) + abs(self.y - self.closest_resource.y)
+    
+    def distance_to_start_area(self):
+        if not self.game.start_area:
+            return float('inf')
+        start_cell = min(self.game.get_start_area_cells(), key=lambda cell: self.game.distance(cell))
+        return abs(self.x - start_cell.x) + abs(self.y - start_cell.y)
+
+    def move_towards(self, target):
+        dx = target.x - self.x
+        dy = target.y - self.y
+        if abs(dx) > abs(dy):
+            if dx > 0:
+                self.move_randomly(1, 0)
+            else:
+                self.move_randomly(-1, 0)
         else:
-            moving_y = 0
+            if dy > 0:
+                self.move_randomly(0, 1)
+            else:
+                self.move_randomly(0, -1)
 
-        # Calculate the potential new position
-        new_x = self.x + (left - right) * moving_x
-        new_y = self.y + (down - up) * moving_y
-
-        # Check if the new position is within the grid boundaries
-        if 0 <= new_x < self.grid_width and 0 <= new_y < self.grid_height:
-            # Check for collisions with other robots
-            collides_with_robots = any(robot.x == new_x and robot.y == new_y for robot in other_robots)
-
-            # Check for collisions with resources
-            collides_with_resources = any(resource.x == new_x and resource.y == new_y for resource in resources)
-
-            # Check for collisions with obstacles
-            collides_with_obstacles = any(obstacle.x == new_x and obstacle.y == new_y for obstacle in obstacles)
-
-            # Check if the new position is already explored
-            already_explored = (new_x, new_y) in self.explored_area
-
-            for resource in resources:
-                if resource.x == new_x and resource.y == new_y:
-                    self.grab_resource(resource)
-
-            if not collides_with_robots and not collides_with_obstacles and not collides_with_resources:
-                if not already_explored:
-                    self.x = new_x
-                    self.y = new_y
-                    movement = (self.x, self.y)
-                    self.movements.append(movement)
-                    self.explored_area.add(movement)
-                elif randint(1,2) == 2:
-                    self.x = new_x
-                    self.y = new_y
-                    movement = (self.x, self.y)
-                    self.movements.append(movement)
-
-
-    def return_to_start(self) -> None:
-        if self.is_grabbing and self.movements:
-            # Pop the last movement
-            x, y = self.movements.pop()
-            # Revert the movement
-            self.x = x
-            self.y = y
-
-            # Check if the robot has returned to the start point
-            if self.x == self.start_x and self.y == self.start_y:
-                # Reset robot's state
-                self.materials = 0
-                self.change_grabbing_status()
-                print("Robot returned to start point.")
-                return
-
-    def grab_resource(self, resource) -> None:
-        print("is grabbing")
-        grabbing_materials = randint(1, 2)
-        if resource.materials >= grabbing_materials and not self.is_grabbing:
-            self.materials += grabbing_materials
-            resource.materials -= grabbing_materials
-            self.change_grabbing_status()
-
-    def change_grabbing_status(self) -> None:
+    def grab_resource(self, resource):
         if self.is_grabbing:
-            self.is_grabbing = False
-        else:
+            return
+
+        if self.distance_to_resource() <= 1:
+            self.materials += resource.materials
             self.is_grabbing = True
+            resource.is_grabbed = True
 
-    def make_move(self, new_x, new_y) -> None:
-        if 0 <= new_x < self.grid_width and 0 <= new_y < self.grid_height:
-            movement = (self.x - new_x, self.y - new_y)  # Guardar el movimiento
-            self.movements.append(movement)
-            self.x = new_x
-            self.y = new_y
+    def return_to_start(self, start_area):
+        if not self.is_grabbing:
+            return
 
-    def is_touching_start_area(self, threshold: float, start_area: StartArea) -> bool:
-        distance = math.sqrt((self.x - self.start_x) ** 2 + (self.y - self.start_y) ** 2)
-        return distance <= threshold
+        if self.distance(self, start_area) <= 1:
+            self.is_grabbing = False
+            start_area.add_resource(self.materials)
+            self.materials = 0
