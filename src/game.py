@@ -196,13 +196,13 @@ class Game:
         # Draw information about each robot
         robot_info_y = 30
         for i, robot in enumerate(self.robots):
-            robot_materials_text = f"Robot {i + 1} Materials: {robot.materials}"
-            self.draw_text(robot_materials_text, (10, robot_info_y))
-            robot_info_y += 20
-
             if robot.is_grabbing:
                 grabbing_text = f"Robot {i + 1} is Grabbing"
                 self.draw_text(grabbing_text, (10, robot_info_y))
+                robot_info_y += 20
+            else:
+                robot_materials_text = f"Robot {i + 1} Materials: {robot.materials}"
+                self.draw_text(robot_materials_text, (10, robot_info_y))
                 robot_info_y += 20
 
     def log(self, message):
