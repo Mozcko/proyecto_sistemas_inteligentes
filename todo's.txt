@@ -1,0 +1,9 @@
+correccion de coliciones de los robots con los obstaculos
+pathfinding the los robots hacia los recursos
+recoleccion de materiales en los recursos
+pathfinding the los robots hacia el area de inicio
+descarga de los materiales en la zona de inicio
+destruccion de los recursos cuando se quedan sin materiales
+hacer que los robots regresen a la zona de inicio cuando se consiguen 25 materiales
+compartir conocimiento entre robots
+solicitud de ayuda entre robots

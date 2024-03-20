@@ -26,3 +26,6 @@ class StartArea:
             for y in range(self.start_y, self.start_y + self.area_height):
                 rect = pygame.Rect(x * grid_size, y * grid_size, grid_size, grid_size)
                 pygame.draw.rect(screen, (128, 0, 128), rect)
+
+    def add_resource(self, amount: int) -> None:
+        self.materials += amount
