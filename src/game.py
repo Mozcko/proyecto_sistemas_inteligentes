@@ -1,3 +1,5 @@
+from typing import List, Tuple
+
 import pygame
 import sys
 
@@ -12,13 +14,13 @@ from random import randint
 
 class Game:
     def __init__(self, width: int, height: int, grid_size: int) -> None:
-        self.width = width
-        self.height = height
+        self.width: int = width
+        self.height: int = height
         self.grid_size: int = grid_size
-        self.grid = [[0 for _ in range(width)] for _ in range(height)]
+        self.grid: List[List[int]] = [[0 for _ in range(width)] for _ in range(height)]
 
-        self.number_of_robots = 4
-        self.robots = []
+        self.number_of_robots: int = 4
+        self.robots: List[Robot] = []
 
         # Initialize Pygame
         pygame.init()
@@ -33,18 +35,19 @@ class Game:
         self.initialize_robots()
 
         # Colors
-        self.Grey = (100, 100, 100)
+        self.GREY: Tuple[int, int, int] = (100, 100, 100)
 
         # Text
         self.font = pygame.font.Font(None, 24)  # Choose the font and size
 
+    # initialize game components
     def initialize_start_area(self):
-        self.start_area = StartArea(self.width, self.height)
-        self.start_x = self.start_area.start_x
-        self.start_y = self.start_area.start_y
+        self.start_area: StartArea = StartArea(self.width, self.height)
+        self.start_x: int = self.start_area.start_x
+        self.start_y: int = self.start_area.start_y
 
-    def initialize_resources(self):
-        self.resources = [
+    def initialize_resources(self) -> None:
+        self.resources: List[Resources] = [
             Resources(
                 randint(0, self.width - 1),
                 randint(0, self.height - 1),
@@ -54,8 +57,8 @@ class Game:
             for _ in range(20)
         ]
 
-    def initialize_obstacles(self):
-        self.obstacles = [
+    def initialize_obstacles(self) -> None:
+        self.obstacles: List[Obstacles] = [
             Obstacles(
                 randint(0, self.width - 1),
                 randint(0, self.height - 1),
@@ -65,24 +68,25 @@ class Game:
             for _ in range(20)
         ]
 
-    def initialize_robots(self):
+    def initialize_robots(self) -> None:
         start_x, start_y = self.start_area.start_x, self.start_area.start_y
         area_width, area_height = (
             self.start_area.area_width,
             self.start_area.area_height,
         )
 
-        for robot in range(self.number_of_robots):
+        for _ in range(self.number_of_robots):
             # Place robots randomly within the start area
-            x = randint(start_x, start_x + area_width - 1)
-            y = randint(start_y, start_y + area_height - 1)
+            x: int = randint(start_x, start_x + area_width - 1)
+            y: int = randint(start_y, start_y + area_height - 1)
             robot: Robot = Robot(self, x, y)
             self.robots.append(robot)
 
-        self.robot_colors = [
+        self.robot_colors: List[Tuple[int, int, int]] = [
             (randint(0, 255), randint(0, 255), randint(0, 255)) for _ in self.robots
         ]
 
+    # draws the objects
     def draw_grid(self) -> None:
         for y in range(self.height):
             for x in range(self.width):
@@ -92,7 +96,7 @@ class Game:
                     self.grid_size,
                     self.grid_size,
                 )
-                pygame.draw.rect(self.screen, self.Grey, rect, 1)
+                pygame.draw.rect(self.screen, self.GREY, rect, 1)
 
     def draw_resources(self) -> None:
         for resource in self.resources:
@@ -102,7 +106,7 @@ class Game:
         for obstacle in self.obstacles:
             obstacle.draw(self.screen, self.grid_size)
 
-    def draw_robot(self, robot: Robot, robot_color: tuple) -> None:
+    def draw_robot(self, robot: Robot, robot_color: Tuple[int, int, int]) -> None:
         rect = pygame.Rect(
             robot.x * self.grid_size,
             robot.y * self.grid_size,
@@ -111,13 +115,47 @@ class Game:
         )
         pygame.draw.rect(self.screen, robot_color, rect)
 
-    def move_robot(self, robot):
+    def draw_text(self, text: str, position: Tuple[int, int]) -> None:
+        text_surface = self.font.render(text, True, (255, 255, 255))  # White color
+        self.screen.blit(text_surface, position)
+
+    def draw_info(self) -> None:
+        start_area_materials_text = f"Start Area Materials: {self.start_area.materials}"
+        self.draw_text(start_area_materials_text, (10, 10))
+
+        # Draw information about each robot
+        robot_info_y = 30
+        for i, robot in enumerate(self.robots):
+            if robot.is_grabbing:
+                grabbing_text = f"Robot {i + 1} is Grabbing"
+                self.draw_text(grabbing_text, (10, robot_info_y))
+                robot_info_y += 20
+                robot_materials_text = f"Robot {i + 1} Materials: {robot.materials}"
+                self.draw_text(robot_materials_text, (10, robot_info_y))
+                robot_info_y += 20
+            else:
+                robot_materials_text = f"Robot {i + 1} Materials: {robot.materials}"
+                self.draw_text(robot_materials_text, (10, robot_info_y))
+                robot_info_y += 20
+
+    def log(self, message) -> None:
+        print(f"[{self.clock.get_rawtime()}] {message}")
+
+    # robots stuff
+    def move_robot(self, robot: Robot) -> None:
         if robot.is_grabbing:
             self.return_to_start_area(robot)
         else:
-            self.move_towards_resource(robot)
+            # Utilizar pathfinding para mover al robot hacia el recurso más cercano
+            if robot.closest_resource is not None:
+                robot.move_towards(robot.closest_resource)
+            else:
+                robot.move_randomly()
 
-    def return_to_start_area(self, robot):
+        # Actualizar el recurso más cercano después de mover al robot
+        self.update_closest_resource(robot)
+
+    def return_to_start_area(self, robot: Robot) -> None:
         start_cell = min(
             self.get_start_area_cells(), key=lambda cell: self.distance(robot, cell)
         )
@@ -135,43 +173,21 @@ class Game:
             self.log("Robot has returned to the start area")
             self.log("Robot has dropped the resource")
 
-    def move_towards_resource(self, robot):
-        closest_resource = min(
-            self.resources, key=lambda resource: self.distance(robot, resource)
-        )
-        dx = closest_resource.x - robot.x
-        dy = closest_resource.y - robot.y
-        if abs(dx) > abs(dy):
-            self.update_closest_resource(robot)
-            robot.move_randomly()
-            if robot.x == closest_resource.x and robot.y == closest_resource.y:
-                robot.grab_resource(closest_resource)
-                self.log("Robot has grabbed a resource")
-        else:
-            self.update_closest_resource(robot)
-            robot.move_randomly()
-            if robot.x == closest_resource.x and robot.y == closest_resource.y:
-                robot.grab_resource(closest_resource)
-                self.log("Robot has grabbed a resource")
-
-    def distance(self, obj1, obj2):
+    def distance(self, obj1, obj2) -> int:
         return abs(obj1.x - obj2.x) + abs(obj1.y - obj2.y)
 
-    def update_closest_resource(self, robot):
+    def update_closest_resource(self, robot: Robot) -> None:
         closest_resource = None
         closest_distance = float("inf")
         for resource in self.resources:
-            distance = abs(robot.x - resource.x) + abs(robot.y - resource.y)
+            distance = self.distance(robot, resource)  # Usar la función de distancia correcta
             if distance < closest_distance:
                 closest_resource = resource
                 closest_distance = distance
         robot.closest_resource = closest_resource
 
-    def is_obstacle(self, position):
-        return position in self.obstacles
-
-    def get_start_area_cells(self):
-        start_area_cells = []
+    def get_start_area_cells(self) -> List[Cell]:
+        start_area_cells: List[Cell] = []  # Inicializar start_area_cells como una lista vacía
         start_x, start_y = self.start_area.start_x, self.start_area.start_y
         width, height = self.start_area.area_width, self.start_area.area_height
 
@@ -185,31 +201,8 @@ class Game:
 
         return start_area_cells
 
-    def draw_text(self, text, position):
-        text_surface = self.font.render(text, True, (255, 255, 255))  # White color
-        self.screen.blit(text_surface, position)
-
-    def draw_info(self):
-        start_area_materials_text = f"Start Area Materials: {self.start_area.materials}"
-        self.draw_text(start_area_materials_text, (10, 10))
-
-        # Draw information about each robot
-        robot_info_y = 30
-        for i, robot in enumerate(self.robots):
-            if robot.is_grabbing:
-                grabbing_text = f"Robot {i + 1} is Grabbing"
-                self.draw_text(grabbing_text, (10, robot_info_y))
-                robot_info_y += 20
-            else:
-                robot_materials_text = f"Robot {i + 1} Materials: {robot.materials}"
-                self.draw_text(robot_materials_text, (10, robot_info_y))
-                robot_info_y += 20
-
-    def log(self, message):
-        print(f"[{self.clock.get_time()}] {message}")
-
     def run(self) -> None:
-        running = True
+        running: bool = True
         print(self.start_area.start_x, self.start_area.start_y)
         while running:
             for event in pygame.event.get():
@@ -221,17 +214,25 @@ class Game:
             self.draw_grid()
             self.draw_resources()
             self.draw_obstacles()
-            self.draw_info()  # Draw the information
+            self.draw_info()  # Dibujar la información
+
+            for resource in self.resources:
+                resource.update()
+                if resource.materials == 0:
+                    self.resources.remove(resource)
+
+            # Iterar sobre cada robot, dibujarlo y moverlo
             for color, robot in enumerate(self.robots):
-                # Draw each robot and move them
                 if color < len(self.robot_colors):
                     self.draw_robot(robot, self.robot_colors[color])
                 else:
-                    self.draw_robot(robot, (255, 255, 255))  # White color
-                self.move_robot(robot)
+                    self.draw_robot(robot, (0, 255, 0))  # Color verde
+                
+                # Mover el robot (utilizando move_randomly o move_towards según corresponda)
+                self.move_robot(robot)  # O robot.move_towards(objetivo) según corresponda
 
             pygame.display.flip()
-            self.clock.tick(20)  # Cap the frame rate to 20 FPS
+            self.clock.tick(20)  # Limitar la velocidad de fotogramas a 20 FPS
 
         pygame.quit()
         sys.exit()

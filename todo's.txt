@@ -1,4 +1,3 @@
-correccion de coliciones de los robots con los obstaculos
 pathfinding the los robots hacia los recursos
 recoleccion de materiales en los recursos
 pathfinding the los robots hacia el area de inicio
@@ -7,12 +6,11 @@ destruccion de los recursos cuando se quedan sin materiales
 hacer que los robots regresen a la zona de inicio cuando se consiguen 25 materiales
 compartir conocimiento entre robots
 solicitud de ayuda entre robots
-<<<<<<< Updated upstream
+
 uso de objetos como parametros de los metodos del robots
 uso de pathfinding en lugar de movimiento aleatorio
 toma de desiciones para los recursos cercanos
 agregar self.closest_resource y self.last_resource
 que el robot dicierna entre el recurso mas cercano y el ultimo que visito
-=======
 mejorar los logs de los robots
->>>>>>> Stashed changes
+

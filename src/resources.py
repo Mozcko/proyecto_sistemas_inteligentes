@@ -16,7 +16,8 @@ class Resources(Obstacles):
 
     def update(self) -> None:
         if self.materials == 0:
-            pass
+            self.x = -1
+            self.y = -1
 
     def draw(self, screen, grid_size) -> None:
         rect = pygame.Rect(self.x * grid_size,
