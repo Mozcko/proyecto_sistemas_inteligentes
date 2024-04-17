@@ -1,6 +1,5 @@
 from typing import Union, List, Tuple, Optional
 import random
-from queue import PriorityQueue
 from cell import Cell
 from resources import Resources
 from obstacles import Obstacles
@@ -39,7 +38,7 @@ class Robot:
         closest_distance = float("inf")
 
         for resource in self.game.resources:
-            distance = self.distance_to_resource(resource)
+            distance = self.distance_to(resource)
             if distance <= self.view_distance and distance < closest_distance:
                 closest_resource = resource
                 closest_distance = distance
@@ -53,26 +52,21 @@ class Robot:
             self._move(new_x, new_y)
             self._check_resource_interaction()  # Verificar interacción con recursos después de moverse
 
-
     def move_towards(self, target: Union[Cell, Resources]) -> None:
-        if self.current_path:
-            next_cell = self.current_path.pop(0)
-            if self.is_valid_move(next_cell[0], next_cell[1]):
-                self._move(next_cell[0], next_cell[1])
-                self._check_resource_interaction()  # Verificar interacción con recursos después de moverse
-        else:
-            path = self.find_path_to(target)
-            if path:
-                next_cell = path.pop(0)
-                if self.is_valid_move(next_cell[0], next_cell[1]):
-                    self._move(next_cell[0], next_cell[1])
-                    self.current_path = path
-                    self._check_resource_interaction()  # Verificar interacción con recursos después de moverse
+        target_x, target_y = target.x, target.y
+        if self.distance_to(target) > 0:
+            direction = random.choice([(0, -1), (0, 1), (-1, 0), (1, 0)])
+            new_x, new_y = self.x + direction[0], self.y + direction[1]
+            closer_to_target: bool = False
+            while not closer_to_target and self.is_valid_move(new_x, new_y):
+                direction = random.choice([(0, -1), (0, 1), (-1, 0), (1, 0)])
+                new_x, new_y = self.x + direction[0], self.y + direction[1]
+                closer_to_target = abs(new_x - target_x) + abs(new_y - target_y) <= self.distance_to(target)
             else:
-                self.move_randomly()
+                self._move(new_x, new_y)
 
     def is_valid_move(self, x: int, y: int) -> bool:
-        other_robots: List[Robot] = self.game.robots
+        # other_robots: List[Robot] = self.game.robots
         resources: List[Resources] = self.game.resources
         obstacles: List[Obstacles] = self.game.obstacles
         
@@ -80,7 +74,7 @@ class Robot:
             return False  # Movimiento fuera de los límites del tablero
         
         # Verificar colisión con otros robots
-        collides_with_robots = any(robot.x == x and robot.y == y for robot in other_robots)
+        # collides_with_robots = any(robot.x == x and robot.y == y for robot in other_robots)
         
         # Verificar colisión con recursos
         collides_with_resources = any(resource.x == x and resource.y == y for resource in resources)
@@ -94,108 +88,56 @@ class Robot:
         already_explored = (x, y) in self.explored_area
         
         # Si no hay colisiones y la posición no ha sido explorada, el movimiento es válido
-        return not collides_with_robots and not collides_with_obstacles and not already_explored
+        return not collides_with_obstacles and not already_explored and not collides_with_resources
 
     def _move(self, x: int, y: int) -> None:
+        self.movements.append((x, y))
         self.x, self.y = x, y
         self._check_resource_interaction()
 
     def interact_with_resource(self, x: int, y: int) -> None:
         for resource in self.game.resources:
             if resource.x == x and resource.y == y:
-                if self.distance_to_resource(resource) <= self.grab_distance:
+                if self.distance_to(resource) <= self.grab_distance:
                     self.grab_resource(resource)
                     self.game.log("Robot has grabbed a resource")
+                    self.is_grabbing = True
                     self.closest_resource = None
                 return
 
     def _check_resource_interaction(self) -> None:
-        if self.closest_resource and self.distance_to_resource(self.closest_resource) <= self.grab_distance:
+        if self.closest_resource and self.distance_to(self.closest_resource) <= self.grab_distance:
             # Verificar si el recurso está siendo agarrado por otro robot
             if not self.is_grabbing:
                 self.grab_resource(self.closest_resource)
                 self.game.log("Robot has grabbed a resource")
                 self.closest_resource = None
-        elif self.is_grabbing and self.distance_to_start_area() <= self.grab_distance:
+             
+        elif self.is_grabbing and (self.distance_to(self.start_cell) == self.grab_distance):
             self.drop_resource()
             self.game.log("Robot has dropped a resource")
-            
-    def find_path_to(self, target: Union[Cell, Resources]) -> Optional[List[Tuple[int, int]]]:
-        if isinstance(target, Cell):
-            goal = (target.x, target.y)
-        elif isinstance(target, Resources):
-            goal = (target.x, target.y)
-        else:
-            raise ValueError("Invalid target type")
 
-        start = (self.x, self.y)
-        frontier = PriorityQueue()
-        frontier.put(start, 0)
-        came_from = {start: None}
-        cost_so_far = {start: 0}
+    def ask_for_help(self, resource: Resources):
+        if resource.materials > 0:
+            for robot in self.game.robots:
+                if robot.last_resource and not robot == self:
+                    robot.last_resource = resource
 
-        while not frontier.empty():
-            current = frontier.get()
-
-            if current == goal:
-                break
-
-            for next_cell in self._get_neighbors(current[0], current[1]):
-                new_cost = cost_so_far[current] + 1
-
-                if next_cell not in cost_so_far or new_cost < cost_so_far[next_cell]:
-                    cost_so_far[next_cell] = new_cost
-                    priority = new_cost + self._calculate_distance(goal[0], goal[1], next_cell[0], next_cell[1])
-                    frontier.put(next_cell, priority)
-                    came_from[next_cell] = current
-
-        if goal in came_from:
-            path = []
-            current = goal
-            while current != start:
-                path.append(current)
-                current = came_from[current]
-            path.append(start)
-            path.reverse()
-            return path
-        else:
-            return None
-
-    def _get_neighbors(self, x: int, y: int) -> List[Tuple[int, int]]:
-        neighbors = []
-        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-            new_x, new_y = x + dx, y + dy
-            if self.is_valid_move(new_x, new_y):
-                neighbors.append((new_x, new_y))
-        return neighbors
-
-    def distance_to_resource(self, resource: Resources) -> float:
-        return self._calculate_distance(
-            self.x, self.y, resource.x, resource.y
-        )
-
-    def distance_to_start_area(self) -> float:
-        if not self.game.start_area:
-            return float("inf")
-        return self._calculate_distance(
-            self.x, self.y, self.start_cell.x, self.start_cell.y
-        )
-
-
-    def _calculate_distance(self, x1: int, y1: int, x2: int, y2: int) -> float:
-        return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
+    def distance_to(self, target: Union[Resources, Cell]):
+        return abs(self.x - target.x) + abs(self.y - target.y)
 
     def grab_resource(self, resource: Resources) -> None:
         if self.is_grabbing:
             return
-        if self.distance_to_resource(resource) <= self.grab_distance:  # Corregir aquí
+        if self.distance_to(resource) <= self.grab_distance:  # Corregir aquí
             self.materials += 1
             resource.materials -= 1
             self.is_grabbing = True
             self.last_resource = resource
+            self.ask_for_help(resource)
 
     def drop_resource(self) -> None:
-        if self.is_grabbing and self.distance_to_start_area() <= self.grab_distance:
+        if self.is_grabbing and self.distance_to(self.start_cell) == self.grab_distance:
             self.is_grabbing = False
-            self.game.start_area.add_resource(self.materials)
+            self.game.start_area.increase_materials()
             self.materials = 0

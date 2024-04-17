@@ -69,16 +69,10 @@ class Game:
         ]
 
     def initialize_robots(self) -> None:
-        start_x, start_y = self.start_area.start_x, self.start_area.start_y
-        area_width, area_height = (
-            self.start_area.area_width,
-            self.start_area.area_height,
-        )
-
         for _ in range(self.number_of_robots):
             # Place robots randomly within the start area
-            x: int = randint(start_x, start_x + area_width - 1)
-            y: int = randint(start_y, start_y + area_height - 1)
+            x: int = randint(self.start_x, self.start_x + self.start_area.area_width - 1)
+            y: int = randint(self.start_y, self.start_y + self.start_area.area_height - 1)
             robot: Robot = Robot(self, x, y)
             self.robots.append(robot)
 
@@ -144,13 +138,9 @@ class Game:
     # robots stuff
     def move_robot(self, robot: Robot) -> None:
         if robot.is_grabbing:
-            self.return_to_start_area(robot)
+            robot.move_towards(robot.start_cell)
         else:
-            # Utilizar pathfinding para mover al robot hacia el recurso más cercano
-            if robot.closest_resource is not None:
-                robot.move_towards(robot.closest_resource)
-            else:
-                robot.move_randomly()
+            robot.decide_movement()
 
         # Actualizar el recurso más cercano después de mover al robot
         self.update_closest_resource(robot)
@@ -200,6 +190,13 @@ class Game:
         start_area_cells = [Cell(x, y) for x, y in start_area_cells]
 
         return start_area_cells
+    
+    def check_game_over(self) -> bool:
+        if self.start_area.materials >= 25:
+            return True
+        else:
+            return False
+
 
     def run(self) -> None:
         running: bool = True
@@ -229,7 +226,10 @@ class Game:
                     self.draw_robot(robot, (0, 255, 0))  # Color verde
                 
                 # Mover el robot (utilizando move_randomly o move_towards según corresponda)
-                self.move_robot(robot)  # O robot.move_towards(objetivo) según corresponda
+                if self.check_game_over():
+                    robot.move_towards(robot.start_cell)
+                else:
+                    self.move_robot(robot)  # O robot.move_towards(objetivo) según corresponda
 
             pygame.display.flip()
             self.clock.tick(20)  # Limitar la velocidad de fotogramas a 20 FPS
